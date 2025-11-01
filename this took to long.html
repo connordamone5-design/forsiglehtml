@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>adhd heven</title>
+  <style>
+    body { margin: 0; padding: 0; background: #111; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+  <!-- p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+
+<!-- ======== GLOBALS (from your sketch.js) ======== -->
+<script>
+var blocksX = 40;
+var blocksY = 20;
+
+let maxBlocks = 1000;
+let blockSize;
+let xOffset = 0;
+let yOffset = 0;
+
+let s;
+let pause = false;
+let speedMultiplier = 1;
+let hc;
+let outlineLength = 3;
+</script>
+
+<!-- ======== HamiltonianCycle.js (your full code) ======== -->
+<script>
+class HamiltonianCycle {
+    constructor(w, h) {
+        this.w = w;
+        this.h = h;
+        this.createCycle();
+    }
+
+    createCycle() {
+        this.createSpanningTree();
+
+        let cycle = [];
+        let cycleNodes = [];
+        for (var i = 0; i < this.w; i++) {
+            for (var j = 0; j < this.h; j++) {
+                cycleNodes.push(new HNode(i, j));
+            }
+        }
+        for (let n of cycleNodes) {
+            n.setEdges(cycleNodes);
+        }
+        for (let i = 0; i < this.spanningTreeNodes.length; i++) {
+
+            let currentSpanningTreeNode = this.spanningTreeNodes[i];
+
+            for (let other of currentSpanningTreeNode.spanningTreeAdjacentNodes) {
+                let connectNodes = (x1, y1, x2, y2) => {
+                    print(x1, y1, x2, y2);
+                    if (y1 + this.h * (x1) >= cycleNodes.length || y2 + this.h * (x2) >= cycleNodes.length) {
+                        return;
+                    }
+                    let a = cycleNodes[y1 + this.h * (x1)];
+                    let b = cycleNodes[y2 + this.h * (x2)];
+                    a.spanningTreeAdjacentNodes.push(b);
+                    b.spanningTreeAdjacentNodes.push(a);
+                };
+
+                let direction = currentSpanningTreeNode.getDirectionTo(other);
+                let x = currentSpanningTreeNode.x * 2;
+                let y = currentSpanningTreeNode.y * 2;
+
+                if (direction.x === 1) {
+                    connectNodes(x + 1, y, x + 2, y);
+                    connectNodes(x + 1, y + 1, x + 2, y + 1);
+                } else if (direction.y === 1) {
+                    connectNodes(x, y + 1, x, y + 2);
+                    connectNodes(x + 1, y + 1, x + 1, y + 2);
+                }
+            }
+        }
+
+        let degree1Nodes = cycleNodes.filter((n) => n.spanningTreeAdjacentNodes.length === 1);
+        let newEdges = [];
+        for (let n of degree1Nodes) {
+            let d = n.spanningTreeAdjacentNodes[0].getDirectionTo(n);
+            d.x += n.x;
+            d.y += n.y;
+            print(d, n, d.y + this.h * d.x, cycleNodes[d.y + this.h * d.x]);
+            let newEdge = new HEdge(cycleNodes[d.y + this.h * d.x], n);
+            let uniqueEdge = true;
+            for (let e of newEdges) {
+                if (e.isEqualTo(newEdge)) {
+                    uniqueEdge = false;
+                    break;
+                }
+            }
+            if (uniqueEdge) newEdges.push(newEdge);
+        }
+        for (let e of newEdges) e.connectNodes();
+
+        degree1Nodes = cycleNodes.filter((n) => n.spanningTreeAdjacentNodes.length === 1);
+        newEdges = [];
+        for (let n of degree1Nodes) {
+            let d = {x: n.x, y: n.y};
+            for (let m of degree1Nodes) {
+                if (dist(n.x, n.y, m.x, m.y) === 1) {
+                    if (floor(n.x / 2) === floor(m.x / 2) && floor(n.y / 2) === floor(m.y / 2)) {
+                        let newEdge = new HEdge(m, n);
+                        let uniqueEdge = true;
+                        for (let e of newEdges) {
+                            if (e.isEqualTo(newEdge)) {
+                                uniqueEdge = false;
+                                break;
+                            }
+                        }
+                        if (uniqueEdge) newEdges.push(newEdge);
+                        break;
+                    }
+                }
+            }
+        }
+        for (let e of newEdges) e.connectNodes();
+
+        print(cycleNodes);
+        for (let n of cycleNodes) {
+            if (n.spanningTreeAdjacentNodes.length !== 2) {
+                print("oof", n);
+            }
+        }
+
+        cycle = [cycleNodes.getRandomElement()];
+        let previous = cycle[0];
+        let node = cycle[0].spanningTreeAdjacentNodes[0];
+
+        while (node !== cycle[0]) {
+            let next = node.spanningTreeAdjacentNodes[0];
+            if (next === previous) next = node.spanningTreeAdjacentNodes[1];
+            if (next.spanningTreeAdjacentNodes.length !== 2) print("oof", next);
+            cycle.push(node);
+            previous = node;
+            node = next;
+        }
+
+        print(cycle);
+        this.cycle = cycle;
+        for(let i = 0 ; i<this.cycle.length;i++){
+            this.cycle[i].cycleNo = i;
+        }
+    }
+
+    show() {
+        for (let i = 0; i < this.cycle.length; i++) {
+            push();
+            translate(blockSize / 2, blockSize / 2);
+            scale(blockSize);
+            fill(255);
+            textAlign(CENTER, CENTER);
+            textSize(0.3);
+            text(i, this.cycle[i].x, this.cycle[i].y);
+            stroke(255, 100);
+            strokeWeight(0.1);
+            if (i !== this.cycle.length - 1) {
+                line(this.cycle[i].x, this.cycle[i].y, this.cycle[i + 1].x, this.cycle[i + 1].y);
+            } else {
+                line(this.cycle[i].x, this.cycle[i].y, this.cycle[0].x, this.cycle[0].y);
+            }
+            pop();
+        }
+    }
+
+    createSpanningTree() {
+        let stNodes = [];
+        for (var i = 0; i < this.w / 2; i++) {
+            for (var j = 0; j < this.h / 2; j++) {
+                stNodes.push(new HNode(i, j));
+            }
+        }
+        for (var n of stNodes) n.setEdges(stNodes);
+
+        let spanningTree = [];
+        let randomNode = stNodes[floor(random(stNodes.length))];
+        spanningTree.push(new HEdge(randomNode, randomNode.edges[0]));
+        let nodesInSpanningTree = [randomNode, randomNode.edges[0]];
+
+        while (nodesInSpanningTree.length < stNodes.length) {
+            randomNode = nodesInSpanningTree.getRandomElement();
+            let edges = randomNode.edges.filter((n) => !nodesInSpanningTree.includes(n));
+            if (edges.length !== 0) {
+                let randomEdge = edges.getRandomElement();
+                nodesInSpanningTree.push(randomEdge);
+                spanningTree.push(new HEdge(randomNode, randomEdge));
+            }
+        }
+
+        for (let n of stNodes) n.setSpanningTreeEdges(spanningTree);
+        for (let n of stNodes) {
+            if (!nodesInSpanningTree.includes(n)) print("noooooo");
+        }
+
+        this.spanningTree = spanningTree;
+        print(spanningTree);
+        this.spanningTreeNodes = stNodes;
+    }
+
+    getNextPosition(x, y) {
+        for (let i = 0; i < this.cycle.length; i++) {
+            if (this.cycle[i].x === x && this.cycle[i].y === y) {
+                return this.cycle[(i + 1) % this.cycle.length];
+            }
+        }
+        return null;
+    }
+
+    getNodeNo(x, y) {
+        for (let i = 0; i < this.cycle.length; i++) {
+            if (this.cycle[i].x === x && this.cycle[i].y === y) return i;
+        }
+        return -1;
+    }
+
+    getPossiblePositionsFrom(x, y) {
+        let currentNode = this.cycle[this.getNodeNo(x, y)];
+        let nodeNos = [];
+        for (let n of currentNode.edges) nodeNos.push(this.getNodeNo(n.x, n.y));
+        return nodeNos;
+    }
+}
+
+Array.prototype.getRandomElement = function () {
+    return this[floor(random(this.length))];
+};
+
+class HNode {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.spanningTreeAdjacentNodes = [];
+        this.cycleNo = -1;
+        this.alreadyVisited = false;
+        this.shortestDistanceToThisPoint = 0;
+    }
+
+    setEdges(allNodes) {
+        this.edges = [];
+        this.edges = allNodes.filter((n) => (dist(n.x, n.y, this.x, this.y) === 1));
+    }
+
+    setSpanningTreeEdges(spanningTree) {
+        for (let e of spanningTree) {
+            if (e.contains(this)) this.spanningTreeAdjacentNodes.push(e.getOtherNode(this));
+        }
+    }
+
+    getNextNodeMovingLeft(previousNode) {
+        let direction = previousNode.getDirectionTo(this);
+        let possibleDirections = [];
+        for (let n of this.spanningTreeAdjacentNodes) possibleDirections.push(this.getDirectionTo(n));
+        let checkingDirection = getLeftOf(direction);
+        while (!possibleDirections.includes(checkingDirection)) {
+            checkingDirection = getRightOf(checkingDirection);
+        }
+        return this.spanningTreeAdjacentNodes[possibleDirections.indexOf(checkingDirection)];
+    }
+
+    getDirectionTo(other) {
+        return {x: other.x - this.x, y: other.y - this.y};
+    }
+
+    resetForAStar(){
+        this.alreadyVisited = false;
+        this.shortestDistanceToThisPoint = 0;
+    }
+}
+
+function getLeftOf(d) {
+    if (d.x === 0 && d.y === 1) return {x: 1, y: 0};
+    else if (d.x === 0 && d.y === -1) return {x: -1, y: 0};
+    else if (d.x === 1) return {x: 0, y: -1};
+    else return {x: 0, y: 1};
+}
+function getRightOf(d) {
+    if (d.x === 0 && d.y === 1) return {x: -1, y: 0};
+    else if (d.x === 0 && d.y === -1) return {x: 1, y: 0};
+    else if (d.x === 1) return {x: 0, y: 1};
+    else return {x: 0, y: -1};
+}
+
+class HEdge {
+    constructor(node1, node2) {
+        this.node1 = node1;
+        this.node2 = node2;
+    }
+    isEqualTo(otherEdge) {
+        return (this.node1 === otherEdge.node1 && this.node2 === otherEdge.node2) ||
+               (this.node1 === otherEdge.node2 && this.node2 === otherEdge.node1);
+    }
+    contains(n) { return (n === this.node1 || n === this.node2); }
+    getOtherNode(n) { return (n === this.node1) ? this.node2 : this.node1; }
+    connectNodes() {
+        this.node1.spanningTreeAdjacentNodes.push(this.node2);
+        this.node2.spanningTreeAdjacentNodes.push(this.node1);
+    }
+}
+
+class HPath {
+    constructor(startingNode, finishingNode) {
+        this.pathLength = 0;
+        this.nodesInPath = [startingNode];
+        this.finishNode = finishingNode;
+        this.distanceToApple = 0;
+        this.setDistanceToApple();
+        this.pathCounter = 0;
+    }
+
+    setDistanceToApple(){
+        this.distanceToApple = dist(this.finishNode.x,this.finishNode.y,this.getLastNode().x,this.getLastNode().y);
+    }
+
+    addToTail(node){
+        this.nodesInPath.push(node);
+        this.pathLength +=1;
+        this.setDistanceToApple();
+    }
+    getLastNode(){ return this.nodesInPath[this.nodesInPath.length-1]; }
+
+    getSnakeTailPositionAfterFollowingPath(snake){
+        if(this.pathLength-snake.addCount<snake.tailBlocks.length){
+            return snake.tailBlocks[max(0, this.pathLength-snake.addCount)];
+        }
+        let tailMoved = this.pathLength-snake.addCount;
+        return this.nodesInPath[tailMoved-snake.tailBlocks.length];
+    }
+
+    getNextMove() {
+        let x = this.nodesInPath[this.pathCounter + 1].x - this.nodesInPath[this.pathCounter].x;
+        let y = this.nodesInPath[this.pathCounter + 1].y - this.nodesInPath[this.pathCounter].y;
+        this.pathCounter++;
+        return {x, y};
+    }
+
+    clone() {
+        let clone = new HPath(this.nodesInPath[0],this.finishNode);
+        clone.nodesInPath = [...this.nodesInPath];
+        clone.pathLength = this.pathLength;
+        clone.distanceToApple = this.distanceToApple;
+        return clone;
+    }
+}
+</script>
+
+<!-- ======== Apple.js (your code) ======== -->
+<script>
+class Apple {
+    constructor(snake) {
+        this.x = floor(random(blocksX));
+        this.y = floor(random(blocksY));
+        while (snake.isAppleOnSnake(this)) {
+            this.x = floor(random(blocksX));
+            this.y = floor(random(blocksY));
+        }
+        print(snake, this);
+    }
+
+    show() {
+        noStroke();
+        fill(0, 150, 0);
+        push();
+        translate(this.x * blockSize + outlineLength, this.y * blockSize + outlineLength);
+        scale((blockSize - 2*outlineLength)/3.0);
+        rect(1,0,1,1);
+        rect(1,2,1,1);
+        rect(0,1,1,1);
+        rect(2,1,1,1);
+        pop();
+    }
+
+    isAtPosition(x, y) { return this.x === x && this.y === y; }
+}
+</script>
+
+<!-- ======== Snake.js (your AI logic, with rainbow render only) ======== -->
+<script>
+class Snake {
+    constructor() {
+        this.x = floor(blocksX / 2);
+        this.y = floor(blocksY / 2);
+        this.tailBlocks = [];
+        this.tailBlocks.push(createVector(this.x - 3, this.y));
+        this.tailBlocks.push(createVector(this.x - 2, this.y));
+        this.tailBlocks.push(createVector(this.x - 1, this.y));
+        this.velX = 1;
+        this.velY = 0;
+        this.apple = new Apple(this);
+        this.addCount = 0;
+        this.dead = false;
+
+        // A* stuff
+        this.survivalMode = false;
+        this.path;
+        this.controlledByPlayer = false;
+        this.searchForLongestPathModeActive = false;
+        this.noMoreAStar = false;
+        this.lateGame = false;
+        this.weWin = false;
+    }
+
+    resetOnHamiltonian(cycle) {
+        this.cycle = cycle;
+        this.tailBlocks = [];
+        this.tailBlocks.push(createVector(cycle[0].x, cycle[0].y));
+        this.tailBlocks.push(createVector(cycle[1].x, cycle[1].y));
+        this.tailBlocks.push(createVector(cycle[2].x, cycle[2].y));
+        this.x = cycle[3].x;
+        this.y = cycle[3].y;
+        this.apple = new Apple(this);
+        this.headCyclePosition = 3;
+        this.tailCyclePosition = 0;
+    }
+
+    // RAINBOW RENDER — only visual change
+    show() {
+        noStroke();
+
+        // Use HSB for rainbow
+        push();
+        colorMode(HSB, 360, 100, 100);
+        let total = this.tailBlocks.length + 1;
+        let baseHue = (frameCount * 2) % 360;
+
+        const segFill = (idxFromTailEnd) => {
+            // head gets freshest hue; tail shifts along spectrum
+            let hue = (baseHue + (idxFromTailEnd * 12)) % 360;
+            fill(hue, 90, 100);
+        };
+
+        // Draw HEAD
+        segFill(total - 1);
+        rect(this.x * blockSize + outlineLength, this.y * blockSize + outlineLength,
+             blockSize - outlineLength * 2, blockSize - outlineLength * 2);
+
+        // Draw connector from head to last tail segment
+        if (this.tailBlocks.length > 0) {
+            segFill(total - 2);
+            rect((this.x + this.tailBlocks[this.tailBlocks.length - 1].x) * blockSize / 2.0 + outlineLength,
+                 (this.y + this.tailBlocks[this.tailBlocks.length - 1].y) * blockSize / 2.0 + outlineLength,
+                 blockSize - outlineLength * 2, blockSize - outlineLength * 2);
+        }
+
+        // Draw TAIL segments
+        for (var i = 0; i < this.tailBlocks.length; i++) {
+            segFill(i); // older segments have smaller idx
+            rect(this.tailBlocks[i].x * blockSize + outlineLength, this.tailBlocks[i].y * blockSize + outlineLength,
+                 blockSize - outlineLength * 2, blockSize - outlineLength * 2);
+            if (i < this.tailBlocks.length - 1) {
+                let x = (this.tailBlocks[i].x + this.tailBlocks[i + 1].x) / 2 * blockSize;
+                let y = (this.tailBlocks[i].y + this.tailBlocks[i + 1].y) / 2 * blockSize;
+                rect(x + outlineLength, y + outlineLength, blockSize - outlineLength * 2, blockSize - outlineLength * 2);
+            }
+        }
+        pop();
+
+        if (!this.weWin) this.apple.show();
+    }
+
+    move() {
+        if (this.weWin) return;
+        if (!this.controlledByPlayer) {
+            if (!this.path || this.path.pathCounter >= this.path.pathLength) {
+                this.calculatePath();
+            }
+
+            if (!this.path || this.path.pathLength === 0) {
+                let nextPos = this.getNextPosition();
+                this.velX = nextPos.x - this.x;
+                this.velY = nextPos.y - this.y;
+            } else {
+                let nextMove = this.path.getNextMove();
+                this.velX = nextMove.x;
+                this.velY = nextMove.y;
+            }
+        }
+
+        if (this.addCount <= 0) {
+            this.tailBlocks.splice(0, 1);
+            this.tailCyclePosition = (this.tailCyclePosition + 1) % this.cycle.length;
+        } else {
+            this.addCount--;
+        }
+        this.tailBlocks.push(createVector(this.x, this.y));
+        this.x += this.velX;
+        this.y += this.velY;
+    }
+
+    getNextPosition() {
+        this.appleCyclePosition = hc.getNodeNo(this.apple.x, this.apple.y);
+        let possibleNextPositions = hc.getPossiblePositionsFrom(this.x, this.y);
+        let minDiist = 100000;
+        let minIndex = 0;
+        for (let i = 0; i < possibleNextPositions.length; i++) {
+            let distance = this.appleCyclePosition - possibleNextPositions[i];
+            while (distance < 0) distance += this.cycle.length;
+
+            if (this.overTakesTail(this.cycle[possibleNextPositions[i]])) continue;
+
+            if (distance < minDiist) {
+                minDiist = distance;
+                minIndex = i;
+            }
+        }
+        if (minDiist === 100000) {
+            return this.cycle[(hc.getNodeNo(this.x, this.y) + 1) % this.cycle.length];
+        }
+        return this.cycle[possibleNextPositions[minIndex]];
+    }
+
+    overTakesTail(newPos, h, t) {
+        let minDistanceBetweenHeadAndTail = 50;
+        let head;
+        if (h) head = h.cycleNo;
+        else head = hc.getNodeNo(this.x, this.y);
+
+        let actualTail;
+        if(t) actualTail = hc.getNodeNo(t.x,t.y);
+        else actualTail = hc.getNodeNo(this.tailBlocks[0].x, this.tailBlocks[0].y);
+
+        if (this.getDistanceBetweenPoints(head, actualTail) <= minDistanceBetweenHeadAndTail + this.addCount) {
+            return true;
+        }
+
+        let tail = actualTail - minDistanceBetweenHeadAndTail - this.addCount;
+        if (tail < 0) tail += this.cycle.length;
+
+        if (this.getDistanceBetweenPoints(head, newPos.cycleNo) >= this.getDistanceBetweenPoints(head, (tail))) {
+            return true;
+        }
+        return false;
+    }
+
+    getPathBasedOnAStar() {
+        for(let n of this.cycle) n.resetForAStar();
+        this.appleCyclePosition = hc.getNodeNo(this.apple.x, this.apple.y);
+
+        let startNode = this.cycle[hc.getNodeNo(this.x, this.y)];
+        let bigList = [];
+        let winningPath;
+
+        let startingPath = new HPath(startNode,this.cycle[this.appleCyclePosition]);
+        bigList.push(startingPath);
+
+        while (true) {
+            if (bigList.length === 0) {
+                return winningPath;
+            }
+            let currentPath = bigList.shift();
+            if (winningPath && currentPath.pathLength >= winningPath.pathLength) continue;
+
+            if (currentPath.distanceToApple === 0) {
+                if (winningPath == null || currentPath.pathLength < winningPath.pathLength) {
+                    winningPath = currentPath.clone();
+                }
+                continue;
+            }
+
+            let finalNodeInPath = currentPath.getLastNode();
+
+            if (!finalNodeInPath.alreadyVisited || currentPath.pathLength < finalNodeInPath.shortestDistanceToThisPoint) {
+                finalNodeInPath.alreadyVisited = true;
+                finalNodeInPath.shortestDistanceToThisPoint = currentPath.pathLength;
+
+                for (var n of finalNodeInPath.edges) {
+                    if (this.overTakesTail(n, finalNodeInPath, currentPath.getSnakeTailPositionAfterFollowingPath(this))) {
+                        if (n.cycleNo !== finalNodeInPath.cycleNo + 1) continue;
+                    }
+                    let p = currentPath.clone();
+                    p.addToTail(n);
+                    if (p.getLastNode().alreadyVisited && p.pathLength > p.getLastNode().shortestDistanceToThisPoint) continue;
+                    bigList.push(p);
+                }
+            }
+
+            bigList.sort((a, b) => ((a.distanceToApple + a.pathLength) - (b.distanceToApple + b.pathLength)));
+        }
+    }
+
+    getDistanceBetweenPoints(from, to) {
+        let distance = to - from;
+        while (distance < 0) distance += this.cycle.length;
+        return distance;
+    }
+
+    checkFuturePos() {
+        this.x += this.velX;
+        this.y += this.velY;
+        for (var i = 0; i < this.tailBlocks.length; i++) {
+            if (this.tailBlocks[i].x === this.x && this.tailBlocks[i].y === this.y) this.dead = true;
+        }
+        if (this.x < 0 || this.x >= blocksX || this.y < 0 || this.y >= blocksY) this.dead = true;
+        this.x -= this.velX;
+        this.y -= this.velY;
+        if (this.dead) { this.dead = false; pause = true; }
+    }
+
+    update() {
+        if(!this.dead){
+            this.move();
+            this.checkCollisions();
+        }
+    }
+
+    checkCollisions() {
+        if (blocksX * blocksY - (this.tailBlocks.length + 1) <= 0) {
+            this.weWin = true;
+            setup();
+            return;
+        }
+        for (var i = 0; i < this.tailBlocks.length; i++) {
+            if (this.tailBlocks[i].x === this.x && this.tailBlocks[i].y === this.y) {
+                this.dead = true;
+                return;
+            }
+        }
+        if (this.x < 0 || this.x >= blocksX || this.y < 0 || this.y >= blocksY) {
+            this.dead = true;
+            return;
+        }
+        if (this.x === this.apple.x && this.y === this.apple.y) this.ateApple();
+    }
+
+    ateApple() {
+        this.addCount += 4;
+        this.apple = new Apple(this);
+        this.calculatePath();
+    }
+
+    calculatePath() {
+        this.path = this.getPathBasedOnAStar();
+    }
+
+    isAppleOnSnake(a) { return this.snakeAtPosition(a.x, a.y); }
+    snakeAtPosition(x, y) { return this.snakeTailAtPosition(x, y) || (this.x == x && this.y == y); }
+    snakeTailAtPosition(x, y) {
+        for (var i = 0; i < this.tailBlocks.length; i++) {
+            if (this.tailBlocks[i].x == x && this.tailBlocks[i].y == y) return true;
+        }
+        return false;
+    }
+}
+</script>
+
+<!-- ======== sketch.js (p5 setup/draw—your code) ======== -->
+<script>
+function setup() {
+    window.canvas = createCanvas(windowWidth - 18, windowHeight);
+    canvas.position(0, 0);
+    window.canvas.style('z-index', 1);
+
+    setBlocks();
+    blockSize = min(width / blocksX, height / blocksY);
+    outlineLength = blockSize / 15;
+    xOffset = (width - blockSize * blocksX) / 2.0;
+    yOffset = (height - blockSize * blocksY) / 2.0;
+
+    s = new Snake();
+    hc = new HamiltonianCycle(blocksX, blocksY);
+    s.resetOnHamiltonian(hc.cycle);
+    frameRate(30);
+}
+
+function setBlocks() {
+    let testBlockSize = 1;
+    while (true) {
+        if (floor(canvas.width / testBlockSize) * floor(canvas.height / testBlockSize) < maxBlocks) {
+            blockSize = testBlockSize;
+            blocksX = floor(canvas.width / blockSize) - floor(canvas.width / blockSize) % 2;
+            blocksY = floor(canvas.height / blockSize) - floor(canvas.height / blockSize) % 2;
+            return;
+        } else {
+            testBlockSize++;
+        }
+    }
+}
+
+function windowResized() {
+    resizeCanvas(windowWidth - 18, windowHeight);
+    blockSize = min(width / blocksX, height / blocksY);
+    outlineLength = blockSize / 15;
+    xOffset = (width - blockSize * blocksX) / 2.0;
+    yOffset = (height - blockSize * blocksY) / 2.0;
+}
+
+function draw() {
+    if (!pause) {
+        background(20);
+        push();
+        translate(xOffset, yOffset);
+        s.show();
+        for (let i = 0; i < speedMultiplier; i++) s.update();
+        pop();
+    }
+}
+
+function keyPressed() {
+    if (keyCode === UP_ARROW) {
+        s.velX = 0; s.velY = -1; pause = false;
+    } else if (keyCode === DOWN_ARROW) {
+        s.velX = 0; s.velY = 1; pause = false;
+    } else if (key === ' ') {
+        speedMultiplier = 10;
+    }
+}
+function keyReleased() {
+    if (key === ' ') speedMultiplier = 1;
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RNG Mega — EVERYTHING (Full Build)</title>
+<style>
+  :root{--bg:#0b0e13;--text:#cfd8e3;--muted:#7b88a1;--accent:#00e0ff;--accentGlow:rgba(0,224,255,.35);}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 20% 0%,#0f1524 0%,var(--bg) 60%) fixed;color:var(--text);font-family:ui-sans-serif,system-ui,Segoe UI,Inter,Roboto,Arial;letter-spacing:.2px;}
+  .wrap{max-width:1200px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:360px 1fr;gap:16px}
+  .card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:16px;
+        box-shadow:0 0 0 1px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.45),0 0 40px var(--accentGlow) inset;}
+  .title{display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-bottom:12px}
+  .pill{padding:4px 10px;border:1px solid rgba(255,255,255,.08);border-radius:999px;font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:#0e1421;color:var(--text);border:1px solid var(--accent);border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer}
+  button.secondary{border-color:rgba(255,255,255,.2)}
+  button.bad{border-color:#ef4444}
+  button[disabled]{opacity:.5;cursor:not-allowed}
+  input[type=number]{background:#0e1421;color:var(--text);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px}
+  .inv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;max-height:460px;overflow:auto}
+  .item{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px;background:#0d1422;display:flex;flex-direction:column;gap:6px}
+  .name{font-weight:600}
+  .rar{font-size:12px;color:var(--muted)}
+  .stat{font-size:12px;color:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
+  .shopRow{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;background:#0d1422}
+  /* Cutscene */
+  #cutscene{position:fixed;inset:0;display:none;background:black;z-index:9999;overflow:hidden;}
+  #stars{position:fixed;inset:0;z-index:0;background:black;}
+  .chain{position:fixed;top:-200px;width:80px;height:200px;z-index:2;animation:fallChain linear forwards}
+  @keyframes fallChain{from{transform:translateY(-240px);opacity:1}to{transform:translateY(110vh);opacity:0}}
+  .csCenter{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5;text-align:center}
+  .line{font-size:24px;color:#fff;opacity:0;animation:fadeLine 2s ease forwards;margin:10px 0}
+  @keyframes fadeLine{to{opacity:1}}
+  .nameReveal{font-size:72px;opacity:0;animation:revealName 2.5s ease forwards; background:linear-gradient(90deg,red,orange,yellow,green,blue,indigo,violet); -webkit-background-clip:text; color:transparent; text-shadow:0 0 20px rgba(255,255,255,.7)}
+  @keyframes revealName{0%{opacity:0;transform:scale(.85)}100%{opacity:1;transform:scale(1)}}
+  #closeCut{margin-top:16px;display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="title">
+      <span class="accent">RNG Mega Roll Game</span>
+      <span class="pill mono">💠 Points: <span id="pointsTop">0</span></span>
+    </div>
+    <div class="row">
+      <button id="rollBtn">Roll</button>
+      <button id="autoBtn" class="secondary">Start Auto-Roll</button>
+    </div>
+    <div class="row">
+      <span class="pill mono">Cooldown: <span id="cooldownView">ready</span></span>
+      <label class="pill">Auto-keep ≥ 1 in 
+        <input id="autoThreshold" type="number" min="1" value="1000" style="width:100px;margin-left:6px"/>
+      </label>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="title"><span>Points</span></div>
+      <div class="row">
+        <button id="clickBtn">Click +Points</button>
+        <span class="pill mono">💠 Points: <span id="pointsView">0</span></span>
+      </div>
+      <div class="stat">Base +1 per click. Gears increase click bonus, luck, and reduce cooldown.</div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="title"><span>Crafting</span></div>
+      <div id="craftList" class="mono" style="font-size:12px;display:grid;gap:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="title">
+        <span>Inventory</span>
+        <span class="pill mono">Slots: <span id="capUsed">0</span>/<span id="capMax">24</span></span>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <button id="saveBtn" class="secondary">Save</button>
+        <button id="loadBtn" class="secondary">Load</button>
+      </div>
+      <div class="shopRow" style="margin-bottom:10px">
+        <div class="mono">Buy +1 Slot — Cost: <span id="slotCost">100</span> pts</div>
+        <button id="buySlotBtn">Buy Slot</button>
+      </div>
+      <div id="inv" class="inv"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="title"><span>Stats</span></div>
+      <div class="stat">Luck: <span id="luckView">1.00x</span></div>
+      <div class="stat">Roll Cooldown: <span id="cdView">1000ms</span></div>
+      <div class="stat">Click Bonus: <span id="clickView">+1</span></div>
+      <div class="stat mono" style="margin-top:6px">Equipped Gears: <span id="gearCount">0</span>/10</div>
+    </div>
+
+    <div class="card" id="debugPanel" style="margin-top:12px;display:none;">
+      <div class="title"><span>Debug Tools</span><span class="pill mono">Toggle: Ctrl+Q</span></div>
+      <div class="row">
+        <button id="dbgParadox">Force Eternal Paradox</button>
+        <button id="dbgPts">+10,000 Points</button>
+        <button id="dbgAuras">Add Sample Auras</button>
+      </div>
+      <div class="row">
+        <button id="dbgGears">Add Test Gears</button>
+        <button id="dbgForges">+7 Singularity Forges</button>
+        <button id="dbgWipe" class="bad">Wipe Inventory</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title"><span>Event Log</span><span class="pill mono" id="logCount">0</span></div>
+    <div id="log" class="mono" style="font-size:12px;max-height:520px;overflow:auto;white-space:pre-wrap"></div>
+  </div>
+</div>
+
+<!-- CUTSCENE -->
+<div id="cutscene">
+  <canvas id="stars"></canvas>
+  <div class="csCenter">
+    <div class="line" style="animation-delay:1s;">The silence trembles...</div>
+    <div class="line" style="animation-delay:3s;">Shadows bend to your will...</div>
+    <div class="line" style="animation-delay:5s;">Chains descend from the void...</div>
+    <h2 id="csName" class="nameReveal" style="animation-delay:8s;">✨ Eternal Paradox ✨</h2>
+    <button id="closeCut" class="secondary">Close</button>
+  </div>
+</div>
+
+<script>
+// ===== Utility =====
+const $ = s => document.querySelector(s);
+function log(msg){const t=new Date().toLocaleTimeString();const el=$("#log");el.textContent=`[${t}] ${msg}\n`+el.textContent;$("#logCount").textContent=(+$("#logCount").textContent+1)||1;}
+function setAccent(hex){document.documentElement.style.setProperty("--accent",hex);document.documentElement.style.setProperty("--accentGlow",hex+"55");}
+
+// ===== Auras (300 + final) =====
+const AURAS=[];
+(function(){
+  const prefixes=["Crystal","Shadow","Solar","Lunar","Nebula","Stellar","Cosmic","Oblivion","Radiant","Infernal","Frozen","Eternal","Void","Blazing","Prismatic","Astral","Phantom","Mythic","Aurora","Celestial","Galactic","Twilight","Ember","Frost","Dream","Arcane","Obsidian","Nova","Sacred","Vortex","Runic","Divine","Cinder","Venom","Storm","Pulse","Chrono","Ether","Spirit","Chaos","Harmony","Grim","Sapphire","Emerald","Starfall","Gilded","Mirage","Quantum","Rune","Zenith","Abyssal","Glimmer","Echoing","Iridescent"];
+  const suffixes=["Flame","Light","Shard","Veil","Crown","Core","Echo","Bloom","Spark","Stone","Fang","Wing","Tide","Star","Gleam","Bane","Dream","Storm","Glory","Frost","Whisper","Halo","Surge","Scale","Ray","Spire","Drift","Essence","Talon","Embrace","Gloom","Song","Charm","Wrath","Tear","Claw","Blade","Flare","Eclipse","Inferno","Flux","Nova","Prism","Torrent","Cascade","Beacon","Comet"];
+  const seen=new Set(); const rc=()=>"#"+Math.floor(Math.random()*16777215).toString(16).padStart(6,"0");
+  let odds=2;
+  for(let i=0;i<299;i++){
+    let name;
+    for(let t=0;t<10;t++){name=prefixes[Math.floor(Math.random()*prefixes.length)]+" "+suffixes[Math.floor(Math.random()*suffixes.length)]; if(!seen.has(name)){seen.add(name);break;}}
+    AURAS.push([name,odds,rc(),`A mysterious aura of ${name}.`]);
+    odds = Math.floor(odds*1.2)+1;
+  }
+  AURAS.push(["Eternal Paradox",50000000,"#ff007f","Reality bends. Time and space collapse."]);
+})();
+// Clamp odds so Paradox is always the rarest
+for(let i=0;i<AURAS.length;i++){ if(AURAS[i][1]>=50000000 && AURAS[i][0]!=="Eternal Paradox"){ AURAS[i][1]=49999999; } }
+
+// ===== Recipes (rarity windows) =====
+function rarityLabel(n){
+  if(n<20) return "Common";
+  if(n<200) return "Uncommon";
+  if(n<2000) return "Rare";
+  if(n<20000) return "Epic";
+  if(n<200000) return "Legendary";
+  if(n<2000000) return "Mythic";
+  if(n<20000000) return "Ascendant";
+  return "Transcendent";
+}
+const RECIPES=[
+  {name:"Tinker Rig",req:[{min:2,max:60,count:2}],points:50,click:2,luck:1.5,cd:100,desc:"+2 click, +50% luck, -100ms"},
+  {name:"Moon Loom",req:[{min:120,max:500,count:1}],points:300,click:6,luck:2.0,cd:150,desc:"+6 click, +100% luck, -150ms"},
+  {name:"Nebula Engine",req:[{min:800,max:3000,count:1}],points:1200,click:12,luck:2.5,cd:220,desc:"+12 click, +150% luck, -220ms"},
+  {name:"Stellar Core",req:[{min:3000,max:8000,count:1}],points:3000,click:20,luck:3.0,cd:300,desc:"+20 click, +200% luck, -300ms"},
+  {name:"Eclipse Drive",req:[{min:8000,max:20000,count:1}],points:7000,click:35,luck:4.0,cd:380,desc:"+35 click, +300% luck, -380ms"},
+  {name:"Prism Matrix",req:[{min:20000,max:60000,count:1}],points:15000,click:60,luck:5.0,cd:450,desc:"+60 click, +400% luck, -450ms"},
+  {name:"Blaze Reactor",req:[{min:60000,max:140000,count:1}],points:40000,click:110,luck:7.0,cd:520,desc:"+110 click, +600% luck, -520ms"},
+  {name:"Void Engine",req:[{min:140000,max:600000,count:1}],points:90000,click:200,luck:10.0,cd:600,desc:"+200 click, +900% luck, -600ms"},
+  {name:"Astral Crown",req:[{min:600000,max:3000000,count:1}],points:180000,click:420,luck:15.0,cd:650,desc:"+420 click, +1400% luck, -650ms"},
+  {name:"Singularity Forge",req:[{min:3000000,max:20000000,count:1}],points:600000,click:1200,luck:30.0,cd:800,desc:"+1200 click, +2900% luck, -800ms"}
+];
+
+// ===== State =====
+const state={
+  inv:[], // {id,name,odds,color,desc,type:"aura"|"gear"}
+  points:0,
+  equippedGearIds:[],
+  equippedAuraId:null,
+  lastRollTime:0,
+  autoOn:false,
+  autoMinOdds:1000,
+  invCapacity:24,
+  slotPurchases:0,
+  slotBaseCost:100,
+  slotCostMult:1.75
+};
+
+// ===== Stats =====
+function getEquippedGears(){return state.inv.filter(x=>x.type==="gear" && state.equippedGearIds.includes(x.id));}
+function getLuckMult(){return getEquippedGears().reduce((m,g)=>m*g.luckMult,1);}
+function getClickBonus(){return 1 + getEquippedGears().reduce((s,g)=>s+g.clickBonus,0);}
+function getCooldown(){return Math.max(200, 1000 - getEquippedGears().reduce((s,g)=>s+g.cdReduction,0));}
+function updateStats(){
+  $("#luckView").textContent = getLuckMult().toFixed(2)+"x";
+  $("#cdView").textContent = getCooldown()+"ms";
+  $("#clickView").textContent = "+"+getClickBonus();
+  $("#pointsView").textContent = state.points;
+  $("#pointsTop").textContent = state.points;
+  $("#gearCount").textContent = state.equippedGearIds.length;
+  $("#capUsed").textContent = state.inv.length;
+  $("#capMax").textContent = state.invCapacity;
+  $("#slotCost").textContent = getNextSlotCost();
+}
+
+// ===== Inventory =====
+function addToInventory(item){
+  if(state.inv.length >= state.invCapacity){ log("Inventory full. Buy slots or delete items."); return false; }
+  state.inv.unshift(item); return true;
+}
+function deleteItem(id){
+  const i=state.inv.findIndex(x=>x.id===id); if(i===-1) return;
+  const it=state.inv[i];
+  if(it.type==="aura" && state.equippedAuraId===it.id) state.equippedAuraId=null;
+  if(it.type==="gear" && state.equippedGearIds.includes(it.id)){
+    state.equippedGearIds = state.equippedGearIds.filter(g=>g!==it.id);
+  }
+  state.inv.splice(i,1);
+  log(`Deleted ${it.name}.`);
+  renderInv();
+}
+function toggleGear(id){
+  if(state.equippedGearIds.includes(id)){
+    state.equippedGearIds = state.equippedGearIds.filter(x=>x!==id);
+    log("Unequipped gear.");
+  }else{
+    if(state.equippedGearIds.length>=10){ log("Max 10 gears equipped."); return; }
+    state.equippedGearIds.push(id);
+    log("Equipped gear.");
+  }
+  renderInv();
+}
+function equipAura(id){
+  state.equippedAuraId = id;
+  const a = state.inv.find(x=>x.id===id);
+  if(a){ setAccent(a.color); log("Equipped aura: "+a.name); }
+  renderInv();
+}
+function renderInv(){
+  const c=$("#inv"); c.innerHTML="";
+  for(const it of state.inv){
+    const div=document.createElement("div");
+    div.className="item";
+    div.style.borderColor = (it.color? it.color+"88" : "rgba(255,255,255,.12)");
+    if(it.type==="gear"){
+      div.innerHTML = `
+        <div class="name" style="color:#ffaa00">⚙️ ${it.name}</div>
+        <div class="stat">${it.desc}</div>
+        <div class="actions">
+          <button onclick="toggleGear('${it.id}')">${state.equippedGearIds.includes(it.id)?"Unequip":"Equip"}</button>
+          <button class="bad" onclick="deleteItem('${it.id}')">Delete</button>
+        </div>`;
+    }else{
+      div.innerHTML = `
+        <div class="name" style="color:${it.color}">${it.name}</div>
+        <div class="rar">1 in ${it.odds} • ${rarityLabel(it.odds)}</div>
+        <div class="stat">${it.desc}</div>
+        <div class="actions">
+          <button onclick="equipAura('${it.id}')">${state.equippedAuraId===it.id?"Equipped":"Equip"}</button>
+          <button class="bad" onclick="deleteItem('${it.id}')">Delete</button>
+        </div>`;
+    }
+    c.appendChild(div);
+  }
+  updateStats();
+}
+
+// ===== Rolling =====
+function canRoll(){
+  const now=performance.now();
+  const left=Math.max(0, state.lastRollTime + getCooldown() - now);
+  $("#cooldownView").textContent = left>0 ? (left/1000).toFixed(2)+"s" : "ready";
+  return left<=0;
+}
+function doRoll(){
+  if(!canRoll()){ log("Cooldown active."); return; }
+  state.lastRollTime = performance.now();
+  const luck = getLuckMult();
+  const hits = [];
+  for(const [n,o,c,d] of AURAS){
+    if(Math.random() < (luck/o)) hits.push([n,o,c,d]);
+  }
+  if(hits.length===0){ log("Rolled nothing."); return; }
+  hits.sort((a,b)=>b[1]-a[1]); // rarest first
+  finishRoll(hits[0]);
+}
+function finishRoll([name,odds,color,desc]){
+  // Rainbow effect for Eternal Paradox: theme accent cycles HUE while cutscene runs
+  if(name==="Eternal Paradox"){ startParadoxRainbow(); }
+  const item = {id:crypto.randomUUID(), name, odds, color, desc, type:"aura"};
+  if(state.autoOn){
+    if(odds < state.autoMinOdds){ log(`Auto-deleted ${name} (1 in ${odds})`); return; }
+    if(addToInventory(item)){ renderInv(); log(`Auto-kept ${name} (1 in ${odds})`); }
+  }else{
+    if(addToInventory(item)){ renderInv(); log(`Rolled ${name} (1 in ${odds})`); }
+  }
+  if(name==="Eternal Paradox"){ showCutscene(); }
+}
+
+// ===== Auto =====
+function tickAuto(){ if(state.autoOn) doRoll(); }
+function updateAutoBtn(){ const b=$("#autoBtn"); b.textContent = state.autoOn ? "Stop Auto-Roll" : "Start Auto-Roll"; }
+$("#autoBtn").onclick = ()=>{ state.autoOn=!state.autoOn; updateAutoBtn(); log(state.autoOn?"Auto-roll started.":"Auto-roll stopped."); };
+$("#autoThreshold").addEventListener("change",e=>{ state.autoMinOdds=Math.max(1,Math.floor(+e.target.value||1)); e.target.value=state.autoMinOdds; log(`Auto-keep threshold set to 1 in ${state.autoMinOdds}.`); });
+
+// ===== Points =====
+$("#clickBtn").onclick = ()=>{ const add=getClickBonus(); state.points+=add; log(`💠 +${add} points`); updateStats(); };
+
+// ===== Crafting =====
+function reqText(r){
+  const parts = r.req.map(x=>`${x.count}× ${rarityLabel((x.min+x.max)/2)} (1 in ${x.min}–${x.max})`).join(" + ");
+  return `${parts} + ${r.points} pts`;
+}
+function renderCrafting(){
+  const c=$("#craftList"); c.innerHTML="";
+  for(const r of RECIPES){
+    const row=document.createElement("div");
+    row.className="shopRow";
+    row.innerHTML=`
+      <div>
+        <div><b>${r.name}</b></div>
+        <div>${reqText(r)}</div>
+        <div class="stat">Gives: ${r.desc}</div>
+      </div>
+      <button onclick="craft('${r.name}')">Craft</button>`;
+    c.appendChild(row);
+  }
+}
+function craft(name){
+  const r=RECIPES.find(x=>x.name===name); if(!r) return;
+  if(state.points < r.points){ log("Not enough points."); return; }
+  const toRemove=[];
+  for(const need of r.req){
+    const candidates = state.inv.filter(x=>x.type==="aura" && x.odds>=need.min && x.odds<=need.max && !toRemove.includes(x.id));
+    if(candidates.length < need.count){ log("Missing required auras."); return; }
+    for(let i=0;i<need.count;i++){ toRemove.push(candidates[i].id); }
+  }
+  for(const id of toRemove){ const idx=state.inv.findIndex(x=>x.id===id); if(idx!==-1) state.inv.splice(idx,1); }
+  state.points -= r.points;
+  const g={id:crypto.randomUUID(),name:r.name,desc:r.desc,type:"gear",clickBonus:r.click,luckMult:r.luck,cdReduction:r.cd};
+  if(!addToInventory(g)){ log("Craft failed: inventory full."); return; }
+  log(`⚙️ Crafted ${r.name}!`);
+  renderInv(); renderCrafting();
+}
+
+// ===== Inventory Slot Shop =====
+function getNextSlotCost(){ return Math.floor(state.slotBaseCost * Math.pow(state.slotCostMult, state.slotPurchases)); }
+$("#buySlotBtn").onclick = ()=>{
+  const cost = getNextSlotCost();
+  if(state.points < cost){ log("Not enough points for slot."); return; }
+  state.points -= cost;
+  state.slotPurchases += 1;
+  state.invCapacity += 1;
+  log("Bought +1 inventory slot.");
+  updateStats();
+};
+
+// ===== Save / Load / Autosave =====
+function saveGame(){ localStorage.setItem("rngMegaSave", JSON.stringify(state)); log("Game saved."); }
+function loadGame(){
+  const raw=localStorage.getItem("rngMegaSave"); if(!raw){ log("No save found."); return; }
+  try{
+    const data=JSON.parse(raw);
+    Object.assign(state, data);
+    // Ensure any older saves without new fields still work
+    state.invCapacity ||= 24; state.slotPurchases ||= 0; state.slotBaseCost ||= 100; state.slotCostMult ||= 1.75;
+    renderInv(); renderCrafting(); updateStats(); updateAutoBtn();
+    log("Game loaded.");
+  }catch(e){ log("Failed to load save."); }
+}
+$("#saveBtn").onclick = saveGame;
+$("#loadBtn").onclick = loadGame;
+setInterval(saveGame, 60000); // autosave each minute
+
+// ===== Cutscene: stars + chains + rainbow =====
+let rainbowTimer=null;
+function startParadoxRainbow(){
+  // smoothly rotate accent hue via HSL
+  clearInterval(rainbowTimer);
+  let hue=0;
+  rainbowTimer = setInterval(()=>{
+    hue=(hue+5)%360;
+    const color = `hsl(${hue} 100% 60%)`;
+    setAccent(color);
+    const csName = $("#csName");
+    if(csName){ csName.style.textShadow = `0 0 20px ${color}, 0 0 60px ${color}`; }
+  }, 100);
+}
+function stopParadoxRainbow(){
+  clearInterval(rainbowTimer); rainbowTimer=null;
+  // keep last color, or reset if you prefer:
+  // setAccent("#00e0ff");
+}
+
+function showCutscene(){
+  const overlay=$("#cutscene");
+  overlay.style.display="block";
+  spawnChains();
+  startStars();
+  // Delay close button until the big reveal lands
+  const closeBtn=$("#closeCut");
+  closeBtn.style.display="none";
+  setTimeout(()=>{ closeBtn.style.display="inline-block"; }, 9000);
+}
+$("#closeCut").onclick = ()=>{
+  $("#cutscene").style.display="none";
+  stopParadoxRainbow();
+};
+
+// Stars
+function startStars(){
+  const canvas=$("#stars"),ctx=canvas.getContext("2d");
+  let w,h,stars=[];
+  function resize(){w=canvas.width=innerWidth;h=canvas.height=innerHeight;}
+  resize(); window.onresize=resize;
+  for(let i=0;i<400;i++) stars.push({x:(Math.random()-0.5)*w,y:(Math.random()-0.5)*h,z:Math.random()*1000});
+  function draw(){
+    ctx.fillStyle="black"; ctx.fillRect(0,0,w,h); ctx.fillStyle="white";
+    stars.forEach(s=>{ s.z-=4; if(s.z<=0) s.z=1000; const k=128/s.z, px=s.x*k+w/2, py=s.y*k+h/2;
+      if(px>=0&&px<w&&py>=0&&py<h) ctx.fillRect(px,py,2,2); });
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// Chains
+function spawnChains(){
+  // trickle then storm
+  for(let i=0;i<12;i++) setTimeout(makeChain, i*700);
+  for(let i=0;i<80;i++) setTimeout(makeChain, 5000+i*120);
+}
+function makeChain(){
+  const wrapper=document.createElement("div");
+  wrapper.className="chain";
+  wrapper.style.left = Math.random()*window.innerWidth + "px";
+  wrapper.style.animationDuration = (5+Math.random()*3) + "s";
+
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("width","80"); svg.setAttribute("height","200"); svg.setAttribute("viewBox","0 0 80 200");
+
+  function link(cx, cy){
+    const e=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
+    e.setAttribute("cx",cx); e.setAttribute("cy",cy); e.setAttribute("rx","28"); e.setAttribute("ry","36");
+    e.setAttribute("stroke","white"); e.setAttribute("stroke-width","6"); e.setAttribute("fill","none");
+    e.setAttribute("opacity","0.9");
+    return e;
+  }
+  svg.appendChild(link(40,40));
+  svg.appendChild(link(40,120));
+
+  wrapper.appendChild(svg);
+  $("#cutscene").appendChild(wrapper);
+  setTimeout(()=>wrapper.remove(),8000);
+}
+
+// ===== Debug (Ctrl+Q) =====
+document.addEventListener("keydown", (e)=>{
+  const tag=(document.activeElement&&document.activeElement.tagName)||"";
+  if(tag==="INPUT"||tag==="TEXTAREA") return;
+  if(e.ctrlKey && (e.key==="q"||e.key==="Q")){
+    const p=$("#debugPanel"); p.style.display = (p.style.display==="none"||!p.style.display)?"block":"none";
+    log("Debug panel " + (p.style.display==="block"?"opened":"closed") + " (Ctrl+Q).");
+  }
+});
+$("#dbgParadox").onclick = ()=> finishRoll(["Eternal Paradox",50000000,"#ff007f","Reality bends. Time and space collapse."]);
+$("#dbgPts").onclick = ()=>{ state.points+=10000; log("💠 +10,000 points"); updateStats(); };
+$("#dbgAuras").onclick = ()=>{
+  for(let i=0;i<25;i++){
+    const [n,o,c,d]=AURAS[Math.floor(Math.random()*AURAS.length)];
+    const it={id:crypto.randomUUID(),name:n,odds:o,color:c,desc:d,type:"aura"};
+    if(!addToInventory(it)) break;
+  }
+  renderInv(); log("Added sample auras.");
+};
+$("#dbgGears").onclick = ()=>{
+  const tests=[
+    {name:"Test Gear I",desc:"+5 click, +2x luck, -200ms",clickBonus:5,luckMult:2,cdReduction:200},
+    {name:"Test Gear II",desc:"+20 click, +3x luck, -300ms",clickBonus:20,luckMult:3,cdReduction:300},
+    {name:"Test Gear III",desc:"+50 click, +5x luck, -400ms",clickBonus:50,luckMult:5,cdReduction:400}
+  ];
+  for(const t of tests){
+    const g={id:crypto.randomUUID(),type:"gear",name:t.name,desc:t.desc,clickBonus:t.clickBonus,luckMult:t.luckMult,cdReduction:t.cdReduction};
+    if(!addToInventory(g)) break;
+  }
+  renderInv(); log("Added test gears.");
+};
+$("#dbgForges").onclick = ()=>{
+  for(let i=0;i<7;i++){
+    const g={id:crypto.randomUUID(),type:"gear",name:"Singularity Forge",desc:"+1200 click, +30x luck, -800ms",clickBonus:1200,luckMult:30,cdReduction:800};
+    if(!addToInventory(g)) break;
+  }
+  renderInv(); log("Added 7 Singularity Forges.");
+};
+$("#dbgWipe").onclick = ()=>{
+  state.inv.length=0; state.equippedGearIds.length=0; state.equippedAuraId=null; setAccent("#00e0ff");
+  renderInv(); log("Inventory wiped.");
+};
+
+// ===== Wire up & start =====
+$("#rollBtn").onclick = doRoll;
+setInterval(()=>{ canRoll(); tickAuto(); }, 150);
+function renderCraftingAndInv(){ renderCrafting(); renderInv(); updateAutoBtn(); updateStats(); }
+renderCraftingAndInv();
+</script>
+</body>
+</html>

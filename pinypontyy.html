@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ADHD Heaven — AI Pong CHAOS</title>
+  <style>
+    body{margin:0;background:#0f0f12;color:#eee;font-family:sans-serif}
+    #hud{position:fixed;inset:0;display:flex;align-items:flex-start;justify-content:space-between;padding:14px;pointer-events:none}
+    .score{font-size:22px}
+    canvas{display:block}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+  <div id="hud">
+    <div class="score" id="leftScore">0</div>
+    <div class="score" id="rightScore">0</div>
+  </div>
+
+<script>
+const PADDLE_W=14, PADDLE_H=90, PADDLE_MARGIN=26, BALL_SIZE=14;
+const BASE_SPEED=10, AI_EASE=0.35, MAX_BOUNCE=Math.PI*0.35;
+
+let leftScore=0,rightScore=0,paused=false,hueShift=0;
+
+class Paddle{
+  constructor(x){this.x=x;this.y=height/2;this.vy=0;}
+  update(target){
+    this.vy=(target-this.y)*AI_EASE;
+    this.y+=this.vy;
+    this.y=constrain(this.y,PADDLE_H/2,height-PADDLE_H/2);
+  }
+  draw(h){push();noStroke();colorMode(HSB,360,100,100,1);
+    fill((h+240)%360,80,95);rectMode(CENTER);rect(this.x,this.y,PADDLE_W,PADDLE_H,6);pop();}
+}
+
+class Ball{
+  constructor(){this.reset(random([1,-1]));}
+  reset(dir=1){this.x=width/2;this.y=height/2;this.speed=BASE_SPEED;
+    const a=random(-0.25,0.25)*PI;this.vx=cos(a)*this.speed*dir;this.vy=sin(a)*this.speed;}
+  update(){
+    let nx=this.x+this.vx,ny=this.y+this.vy;
+    // Wall bounce
+    if(ny<=BALL_SIZE/2||ny>=height-BALL_SIZE/2){this.vy*=-1;ny=constrain(ny,BALL_SIZE/2,height-BALL_SIZE/2);}
+    // Left paddle
+    if(this.vx<0 && this.x>=leftPaddle.x && nx<=leftPaddle.x+PADDLE_W/2){
+      if(abs(this.y-leftPaddle.y)<=PADDLE_H/2+BALL_SIZE/2){nx=leftPaddle.x+PADDLE_W/2+BALL_SIZE/2;this._bounce(leftPaddle);}
+    }
+    // Right paddle
+    if(this.vx>0 && this.x<=rightPaddle.x && nx>=rightPaddle.x-PADDLE_W/2){
+      if(abs(this.y-rightPaddle.y)<=PADDLE_H/2+BALL_SIZE/2){nx=rightPaddle.x-PADDLE_W/2-BALL_SIZE/2;this._bounce(rightPaddle);}
+    }
+    this.x=nx;this.y=ny;
+    // Score check
+    if(this.x<-BALL_SIZE){rightScore++;this.reset(1);updateScore();}
+    if(this.x>width+BALL_SIZE){leftScore++;this.reset(-1);updateScore();}
+  }
+  _bounce(p){
+    const rel=(this.y-p.y)/(PADDLE_H/2);
+    const angle=constrain(rel,-1,1)*MAX_BOUNCE;
+    const dir=this.x<width/2?1:-1;
+    // ADDITIVE random boost 🔥
+    const rng = random(1,4); 
+    this.speed += rng;  
+    this.vx=dir*this.speed*cos(angle);
+    this.vy=this.speed*sin(angle)+p.vy*0.12;
+  }
+  draw(h){push();noStroke();colorMode(HSB,360,100,100,1);
+    for(let i=0;i<8;i++){let t=i/8;fill((h+i*12)%360,90,100,1-t*0.9);
+      circle(this.x-this.vx*t*1.6,this.y-this.vy*t*1.6,BALL_SIZE*(1-t*0.35));}
+    pop();}
+}
+
+function predict(ball,xTarget){
+  let px=ball.x,py=ball.y,vx=ball.vx,vy=ball.vy;
+  for(let i=0;i<800;i++){px+=vx;py+=vy;
+    if(py<=BALL_SIZE/2||py>=height-BALL_SIZE/2)vy*=-1;
+    if((vx<0&&px<=xTarget)||(vx>0&&px>=xTarget))break;}
+  return py;
+}
+
+let leftPaddle,rightPaddle,ball;
+function setup(){createCanvas(windowWidth,windowHeight);
+  leftPaddle=new Paddle(PADDLE_MARGIN);rightPaddle=new Paddle(width-PADDLE_MARGIN);ball=new Ball();updateScore();frameRate(60);}
+function windowResized(){resizeCanvas(windowWidth,windowHeight);rightPaddle.x=width-PADDLE_MARGIN;}
+function draw(){
+  if(paused){background(14);return;}
+  background(14,14,18);hueShift=(hueShift+1.4)%360;
+  leftPaddle.update(predict(ball,leftPaddle.x+PADDLE_W/2));
+  rightPaddle.update(predict(ball,rightPaddle.x-PADDLE_W/2));
+  ball.update();
+  leftPaddle.draw((hueShift+120)%360);rightPaddle.draw((hueShift+300)%360);ball.draw(hueShift);
+}
+function keyPressed(){if(key===' ')paused=!paused;if(keyCode===27){leftScore=rightScore=0;ball.reset(random([1,-1]));updateScore();}}
+function updateScore(){document.getElementById('leftScore').textContent=leftScore;document.getElementById('rightScore').textContent=rightScore;}
+</script>
+</body>
+</html>
